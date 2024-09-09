@@ -1,1 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Project Color</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="container">
+        <h1>Images of the Russian Empire:</h1>
+        <h1>Colorizing the Prokudin-Gorskii photo collection</h1>
+        <h2>Atahan Ozdemir</h2>
+      </div>
+    </header>
+    <main class="container">
+      <section id="overview">
+        <div class="content-wrapper">
+          <div class="text-content">
+            <h2>Overview</h2>
+            <p>
+              Sergei Mikhailovich Prokudin-Gorskii (1863–1944) was a visionary
+              color photographer in the early 20th century. In 1907, he secured
+              permission from the Tzar to document the Russian Empire in color,
+              using a groundbreaking method of recording three exposures on
+              glass plates with red, green, and blue filters. His collection
+              includes the only color portrait of Leo Tolstoy, along with
+              thousands of images of people, landscapes, and architecture.
+              Although his dream of projecting these images in classrooms across
+              Russia never materialized, his glass plate negatives survived and
+              were later preserved by the Library of Congress, offering a rare
+              glimpse of pre-revolutionary Russia.
+            </p>
+            <p>
+              In this project, I aim to colorize the Prokudin-Gorskii collection
+              by aligning the three individual glass plate negatives (red,
+              green, and blue) to reconstruct and produce vibrant, colored
+              images from the early 20th century with as few visual artifacts as
+              possible.
+            </p>
+            <p>
+              An example of three glass plate images from Produkin-Gorskii
+              collection can be seen on the right and the final aligned and
+              produced image can be seen below.
+            </p>
+            <div class="overview-image">
+              <img
+                src="images/cathedralNMI.jpg"
+                alt="Final aligned and produced image"
+              />
+              <figcaption>Final aligned and produced image</figcaption>
+            </div>
+          </div>
+          <div class="side-image">
+            <img
+              src="images/cathedral.jpg"
+              alt="Three glass plate images from Prokudin-Gorskii collection"
+            />
+            <figcaption>Three glass plate images from Prokudin-Gorskii collection</figcaption>
+          </div>
+        </div>
+      </section>
+      <section id="approach">
+        <h2>Approach</h2>
+        <h3>Initial Approach</h3>
+        <p>
+          The most straightforward approach to align the color channels is by
+          keeping a reference channel (I chose blue) and exhaustively searching
+          over a [15, 15] pixel window for optimal translations of the target
+          channels (green and red). This method requires a metric to compute
+          similarity between the reference and target channels. I experimented
+          with Sum of Squared Differences (SSD), Normalized Cross Correlation
+          (NCC), and Normalized Mutual Information (NMI). Among these, NMI
+          performed best in my tests (as can be seen below), likely due to its robustness in handling
+          varying intensity distributions across channels. Thus, I chose NMI. 
+          <div class="image-row">
+            <figure>
+                <img src="images/monasterySSD.jpg" alt="SSD Result">
+                <figcaption>Sum of Squared Differences (SSD)</figcaption>
+            </figure>
+            <figure>
+                <img src="images/monasteryNCSS.jpg" alt="NCC Result">
+                <figcaption>Normalized Cross Correlation (NCC)</figcaption>
+            </figure>
+            <figure>
+                <img src="images/monasteryFINAL.jpg" alt="NMI Result with 10% cropped">
+                <figcaption>Normalized Mutual Information (NMI) (with 10% cropped)</figcaption>
+            </figure>
+        </div>
+        </p>
+        <p> 
+            To counteract the border artifacts, I cropped 10% from all sides of the final image. I also tried cropping before aligning but cropping after produced better results.
+        </p>
+        <p>
+            This brute-force strategy works well for smaller
+            images but becomes inefficient for larger ones where the optimal
+            alignment might fall outside the search window. Increasing the window
+            size would lead to prohibitively long processing times. Thus, we need a more efficient strategy for larger .tif images, but here are the results for smaller images from the same collection with their optimal alignments (G, R):
 
+            <div class="image-row">
+                <figure>
+                    <img src="images/cathedralFINAL.jpg" alt="Cathedral Image Result">
+                    <figcaption>Cathedral: Shift G(2, 5), R(3, 12)</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/monasteryFINAL.jpg" alt="Monastery Image Result">
+                    <figcaption>Monastery: Shift G(2, -3), R(2, 3)</figcaption>
+                </figure>
+                <figure>
+                    <img src="images/tobolskFINAL15.jpg" alt="Tobolsk Image Result">
+                    <figcaption>Tobolsk: Shift G(2, 3), R(3, 6)</figcaption>
+                </figure>
+            </div>
+        </p>
+        <h3>Pyramid Approach</h3>
+        <p>
+          For larger images, we could do a pyramid-based approach to efficiently handle larger displacements. This method starts by downscaling the image by powers of 2 until its smallest dimension is around 200 pixels. The alignment process begins at the coarsest level, using a larger search window of [-50, 50] pixels to accommodate potentially significant misalignments. As we progress to finer levels, the algorithm refines the alignment using a smaller [-2, 2] pixel window around the previously computed shift.
+        </p>
+        <p>
+          This coarse-to-fine strategy significantly reduces computation time while maintaining accuracy. It allows for efficient handling of large displacements that would be computationally prohibitive with the brute-force method. As with the initial approach, I used Normalized Mutual Information (NMI) as the similarity metric due to its robust performance across varying channel intensities.
+        </p>
+        <p>
+          To enhance the alignment quality for these high-resolution images, I implemented additional preprocessing steps. The input image is converted to float32 and normalized to the [0, 1] range before alignment. After alignment, I crop 15% from all sides to remove potential border artifacts. Here are some results from larger .tif images in the collection, showing the effectiveness of this approach:
+        </p>
+        <div class="image-row">
+          <figure>
+            <img src="images/churchPYRAMID.jpeg" alt="Train Image Result">
+            <figcaption>Church: Shift G(-6, 24), R(-7, 55)</figcaption>
+          </figure>
+          <figure>
+            <img src="images/sculpturePYRAMID.jpeg" alt="Harvest Image Result">
+            <figcaption>Sculpture: Shift G(-11, 33), R(-27, 140)</figcaption>
+          </figure>
+          <figure>
+            <img src="images/iconPYRAMID.jpeg" alt="Icon Image Result">
+            <figcaption>Icon: Shift G(17, 41), R(23, 90)</figcaption>
+          </figure>
+        </div>
+        <p>
+          The pyramid approach successfully aligned these large images, handling significant displacements that would have been missed by the initial approach's smaller search window. The results demonstrate the method's ability to produce vibrant, well-aligned color images from Prokudin-Gorskii's glass plate negatives, even for high-resolution scans with large misalignments.
+        </p>
+      </section>
+      <section id="results">
+        <h2>Results</h2>
+        <p>Here are the rest of the results from the Prokudin-Gorskii collection.</p>
+        <div class="image-row">
+            <figure>
+              <img src="images/emirPYRAMID.jpeg" alt="Train Image Result">
+              <figcaption>Emir: Shift G(23, 49), R(40, 106)</figcaption>
+            </figure>
+            <figure>
+              <img src="images/harvestersPYRAMID.jpeg" alt="Harvest Image Result">
+              <figcaption>Harvesters: Shift G(15, 59), R(12, 124)</figcaption>
+            </figure>
+            <figure>
+              <img src="images/ladyPYRAMID.jpeg" alt="Icon Image Result">
+              <figcaption>Lady: Shift G(7, 55), R(11, 115)</figcaption>
+            </figure>
+          </div>
+          <div class="image-row">
+            <figure>
+              <img src="images/melonsPYRAMID.jpeg" alt="Train Image Result">
+              <figcaption>Melons: Shift G(9, 81), R(13, 178)</figcaption>
+            </figure>
+            <figure>
+              <img src="images/onion_churchPYRAMID.jpeg" alt="Harvest Image Result">
+              <figcaption>Onion Church: Shift G(25, 52), R(35, 108)</figcaption>
+            </figure>
+            <figure>
+              <img src="images/self_portraitPYRAMID.jpeg" alt="Icon Image Result">
+              <figcaption>Self-Portrait: Shift G(28, 78), R(36, 176)</figcaption>
+            </figure>
+          </div>
+          <div class="image-row">
+            <figure>
+                <img src="images/three_generationsPYRAMID.jpeg" alt="Train Image Result">
+                <figcaption>Three Generations: Shift G(14, 53), R(10, 112)</figcaption>
+            </figure>
+            <figure>
+                <img src="images/trainPYRAMID.jpeg" alt="Harvest Image Result">
+                <figcaption>Train: Shift G(1, 42), R(30, 86)</figcaption>
+            </figure>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
